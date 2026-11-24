@@ -72,6 +72,20 @@ jobs:
     - name: Install Debian dependencies
       if: matrix.distro.name == 'debian'
       run: |
+        # Debian 11 (bullseye) is EOL. Its packages were moved to
+        # archive.debian.org, and the archive Release files no longer have a
+        # valid "Valid-Until" date.
+        if [ "${{ matrix.distro.tag }}" = "11" ]; then
+          if [ -f /etc/apt/sources.list ]; then
+            sed -i -e 's|deb.debian.org|archive.debian.org|g' \
+                   -e 's|security.debian.org|archive.debian.org|g' /etc/apt/sources.list
+          fi
+          if [ -f /etc/apt/sources.list.d/debian.sources ]; then
+            sed -i -e 's|deb.debian.org|archive.debian.org|g' \
+                   -e 's|security.debian.org|archive.debian.org|g' /etc/apt/sources.list.d/debian.sources
+          fi
+          echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99archive
+        fi
         apt-get update -q
         apt-get install -qqy dkms nasm
 
@@ -291,7 +305,10 @@ jobs:
 
     - name: Get coverage requirement
       run: |
-        CODE_COVERAGE_REQ=$(curl https://raw.githubusercontent.com/chipsec/chipsec/refs/heads/main-cfg/codeCoverageRequirement2.cfg)
+        # This fork tracks chipsec 2.0.4. The upstream main-cfg requirement
+        # targets newer releases with a larger test suite, so use the
+        # requirement that matches this branch's code and tests.
+        CODE_COVERAGE_REQ=$(tr -d '[:space:]' < codeCoverageRequirement2.cfg)
         #if var is not a number, set it to 100
         if ! [[ "$CODE_COVERAGE_REQ" =~ ^[0-9]{1,3}\.?[0-9]{0,2}$ ]]; then
           CODE_COVERAGE_REQ=100

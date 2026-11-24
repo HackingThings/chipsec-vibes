@@ -138,10 +138,17 @@ class chipsecStreamFormatter(logging.Formatter):
             color = 'PURPLE'
         else:
             color = 'WHITE'
-        if record.args:
-            if record.args[0] is not None and record.args[0] in self.colors:
-                color = record.args[0]
-            record.args = tuple()
+        # An explicit color may be supplied through the ``color`` extra field.
+        # Do not use LogRecord.args for this: logging interprets args as
+        # printf-style substitution values, so passing a color there breaks
+        # formatting in any handler that formats the record (for example
+        # pytest's log capture handler).
+        explicit_color = getattr(record, 'color', None)
+        if isinstance(explicit_color, str) and explicit_color in self.colors:
+            color = explicit_color
+        # Messages emitted by CHIPSEC are pre-formatted; never let the logging
+        # module attempt %-substitution on them.
+        record.args = tuple()
         if color in self.colors:
             log_fmt = f'{self.colors[color]}{self.infmt}{self.colors["END"]}'
         else:
@@ -175,7 +182,7 @@ class Logger:
 
     def log(self, text: str, level: level = level.INFO, color: Optional[str] = ...) -> None:
         """Sends plain text to logging."""
-        self.chipsecLogger.log(level.value, text, color)
+        self.chipsecLogger.log(level.value, text, extra={'color': color})
 
     def log_verbose(self, text: str) -> None:  # Use log('text', level.VERBOSE)
         """Logs a Verbose message"""
